@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2017-2023, Manticore Software LTD (https://manticoresearch.com)
+// Copyright (c) 2017-2024, Manticore Software LTD (https://manticoresearch.com)
 // Copyright (c) 2001-2016, Andrew Aksyonoff
 // Copyright (c) 2008-2016, Sphinx Technologies Inc
 // All rights reserved
@@ -15,7 +15,7 @@
 #include "attribute.h"
 
 
-void CSphSchemaHelper::InsertAttr ( CSphVector<CSphColumnInfo>& dAttrs, CSphVector<int>& dUsed, int iPos, const CSphColumnInfo& tCol, bool bDynamic )
+void CSphSchemaHelper::InsertAttr ( CSphVector<CSphColumnInfo> & dAttrs, CSphVector<int> & dUsed, int iPos, const CSphColumnInfo & tCol, bool bDynamic )
 {
 	assert ( 0 <= iPos && iPos <= dAttrs.GetLength() );
 	assert ( tCol.m_eAttrType != SPH_ATTR_NONE );
@@ -23,7 +23,8 @@ void CSphSchemaHelper::InsertAttr ( CSphVector<CSphColumnInfo>& dAttrs, CSphVect
 		return;
 
 	dAttrs.Insert ( iPos, tCol );
-	CSphAttrLocator& tLoc = dAttrs[iPos].m_tLocator;
+
+	CSphAttrLocator & tLoc = dAttrs[iPos].m_tLocator;
 
 	int iBits = ROWITEM_BITS;
 	if ( tLoc.m_iBitCount > 0 )
@@ -99,7 +100,7 @@ void CSphSchemaHelper::ResetSchemaHelper()
 
 void CSphSchemaHelper::CloneMatch ( CSphMatch& tDst, const CSphMatch& rhs ) const
 {
-	if ( m_dDataPtrAttrs.GetLength() )
+	if ( !m_dDataPtrAttrs.IsEmpty() )
 		CloneMatchSpecial ( tDst, rhs, m_dDataPtrAttrs );
 	else
 		tDst.Combine ( rhs, GetDynamicSize() );
@@ -107,7 +108,7 @@ void CSphSchemaHelper::CloneMatch ( CSphMatch& tDst, const CSphMatch& rhs ) cons
 
 void CSphSchemaHelper::FreeDataPtrs ( CSphMatch& tMatch ) const
 {
-	if ( !m_dDataPtrAttrs.GetLength() )
+	if ( m_dDataPtrAttrs.IsEmpty() )
 		return;
 
 	FreeDataSpecial ( tMatch, m_dDataPtrAttrs );
@@ -132,18 +133,6 @@ CSphVector<int> CSphSchemaHelper::SubsetPtrs ( CSphVector<int>& dDiscarded ) con
 	return dFiltered;
 }
 
-// declared in sphinxstd.h
-void sphDeallocatePacked ( BYTE* pBlob )
-{
-	if ( !pBlob )
-		return;
-#if WITH_SMALLALLOC
-	const BYTE * pFoo = pBlob;
-	sphDeallocateSmall ( pBlob, sphCalcPackedLength ( UnzipIntBE ( pFoo ) ) );
-#else
-	sphDeallocateSmall ( pBlob );
-#endif
-}
 
 void CSphSchemaHelper::MovePtrsSpecial ( CSphMatch& tDst, CSphMatch& tSrc, const VecTraits_T<int>& dSpecials )
 {
