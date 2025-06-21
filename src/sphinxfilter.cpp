@@ -1618,7 +1618,7 @@ bool FixupFilterSettings ( const CSphFilterSettings & tSettings, CommonFilterSet
 	}
 
 	bool bStrFilter = tSettings.m_eType==SPH_FILTER_STRING || tSettings.m_eType==SPH_FILTER_STRING_LIST;
-	if ( bStrFilter && ( tAttr.m_eAttrType!=SPH_ATTR_STRING && tAttr.m_eAttrType!=SPH_ATTR_STRINGPTR && tAttr.m_eAttrType!=SPH_ATTR_JSON && tAttr.m_eAttrType!=SPH_ATTR_JSON_FIELD ) )
+	if ( bStrFilter && ( tAttr.m_eAttrType!=SPH_ATTR_STRING && tAttr.m_eAttrType!=SPH_ATTR_STRINGPTR && tAttr.m_eAttrType!=SPH_ATTR_JSON && tAttr.m_eAttrType!=SPH_ATTR_JSON_FIELD && tAttr.m_eAttrType!=SPH_ATTR_JSON_FIELD_PTR ) )
 	{
 		sError.SetSprintf ( "unsupported filter type '%s' on attribute '%s'", FilterType2Str(tSettings.m_eType).cstr(), tAttr.m_sName.cstr() );
 		return false;
@@ -1701,6 +1701,9 @@ static void TryToAddGeodistFilters ( const CreateFilterContext_t & tCtx, const C
 
 	assert ( tSettingsPair.first );
 	const GeoDistSettings_t & tSettings = *tSettingsPair.first;
+	// could be JSON field or expression these should be handled different
+	if ( tSettings.m_sAttrLat.IsEmpty() || tSettings.m_sAttrLon.IsEmpty() )
+		return;
 
 	const CSphColumnInfo * pLat = tCtx.m_pMatchSchema->GetAttr ( tSettings.m_sAttrLat.cstr() );
 	const CSphColumnInfo * pLon = tCtx.m_pMatchSchema->GetAttr ( tSettings.m_sAttrLon.cstr() );
