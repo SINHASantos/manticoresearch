@@ -1720,10 +1720,10 @@ void ConvertJsonDataset ( const JsonObj_c & tRoot, const char * sStmt, RowBuffer
 			{
 				assert ( iCol < dSqlColumns.GetLength() );
 				switch ( dSqlColumns[iCol].second ) {
-					case MYSQL_COL_LONG : assert ( tDataCol.IsInt() ); tOut.PutDWORD (NumberAsInt(tDataCol)); break;
-					case MYSQL_COL_LONGLONG : assert ( tDataCol.IsInt() ); tOut.PutInt64 (NumberAsInt(tDataCol)); break;
-					case MYSQL_COL_FLOAT : assert ( tDataCol.IsDbl() ); tOut.PutFloat (NumberAsDouble(tDataCol)); break;
-					case MYSQL_COL_DOUBLE : assert ( tDataCol.IsDbl() ); tOut.PutDouble (NumberAsDouble(tDataCol)); break;
+					case MYSQL_COL_LONG : tOut.PutDWORD (NumberAsInt(tDataCol)); break;
+					case MYSQL_COL_LONGLONG : tOut.PutInt64 (NumberAsInt(tDataCol)); break;
+					case MYSQL_COL_FLOAT : tOut.PutFloat (NumberAsDouble(tDataCol)); break;
+					case MYSQL_COL_DOUBLE : tOut.PutDouble (NumberAsDouble(tDataCol)); break;
 					default: PutAnyValAsString ( tOut, tDataCol );
 				}
 				++iCol;
