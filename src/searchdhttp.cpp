@@ -1595,6 +1595,40 @@ private:
 }]
  */
 
+inline static void PutAnyValAsString ( RowBuffer_i & tOut, const JsonObj_c& tDataCol ) noexcept
+{
+	if ( tDataCol.IsInt () )
+		tOut.PutNumAsString ( tDataCol.IntVal() );
+	else if ( tDataCol.IsDbl () )
+		tOut.PutDoubleAsString ( tDataCol.DblVal() );
+	else if ( tDataCol.IsBool () )
+		tOut.PutString ( tDataCol.BoolVal() ? "true" : "false" );
+	else if ( tDataCol.IsNull () )
+		tOut.PutString ( "null" );
+	else
+		tOut.PutString ( tDataCol.StrVal() );
+}
+
+inline static int64_t NumberAsInt ( const JsonObj_c& tDataCol ) noexcept
+{
+	if ( tDataCol.IsInt () )
+		return tDataCol.IntVal();
+	if ( tDataCol.IsDbl () )
+		return (int64_t)tDataCol.DblVal();
+	assert (false && "Wrong value");
+	return 0;
+}
+
+inline static double NumberAsDouble ( const JsonObj_c& tDataCol ) noexcept
+{
+	if ( tDataCol.IsInt () )
+		return (double)tDataCol.IntVal();
+	if ( tDataCol.IsDbl () )
+		return tDataCol.DblVal();
+	assert (false && "Wrong value");
+	return 0.0;
+}
+
 
 void ConvertJsonDataset ( const JsonObj_c & tRoot, const char * sStmt, RowBuffer_i & tOut )
 {
@@ -1680,11 +1714,11 @@ void ConvertJsonDataset ( const JsonObj_c & tRoot, const char * sStmt, RowBuffer
 			{
 				assert ( iCol < dSqlColumns.GetLength() );
 				switch ( dSqlColumns[iCol].second ) {
-					case MYSQL_COL_LONG : assert ( tDataCol.IsInt() ); tOut.PutDWORD (tDataCol.IntVal()); break;
-					case MYSQL_COL_LONGLONG : assert ( tDataCol.IsInt() ); tOut.PutInt64 (tDataCol.IntVal()); break;
-					case MYSQL_COL_FLOAT : assert ( tDataCol.IsDbl() ); tOut.PutFloat (tDataCol.DblVal()); break;
-					case MYSQL_COL_DOUBLE : assert ( tDataCol.IsDbl() ); tOut.PutDouble (tDataCol.DblVal()); break;
-					default: tOut.PutString ( tDataCol.StrVal() );
+					case MYSQL_COL_LONG : assert ( tDataCol.IsInt() ); tOut.PutDWORD (NumberAsInt(tDataCol)); break;
+					case MYSQL_COL_LONGLONG : assert ( tDataCol.IsInt() ); tOut.PutInt64 (NumberAsInt(tDataCol)); break;
+					case MYSQL_COL_FLOAT : assert ( tDataCol.IsDbl() ); tOut.PutFloat (NumberAsDouble(tDataCol)); break;
+					case MYSQL_COL_DOUBLE : assert ( tDataCol.IsDbl() ); tOut.PutDouble (NumberAsDouble(tDataCol)); break;
+					default: PutAnyValAsString ( tOut, tDataCol );
 				}
 				++iCol;
 			}
