@@ -1510,6 +1510,11 @@ public:
 		PutString ( sTime );
 	}
 
+	virtual MysqlColumnType_e ESphAttr2MysqlColumnStreamed ( ESphAttr eAttrType ) const noexcept
+	{
+		return ::ESphAttr2MysqlColumnStreamed ( eAttrType );
+	}
+
 	virtual void PutNumAsString ( int64_t iVal ) = 0;
 	virtual void PutNumAsString ( uint64_t uVal ) = 0;
 	virtual void PutNumAsString ( int iVal ) = 0;
@@ -1695,11 +1700,8 @@ public:
 		return HeadEnd();
 	}
 
-	virtual void DataStart ( const BYTE* ) {}
-
 	bool DataRow ( const VecTraits_T<CSphString>& dRow )
 	{
-		DataStart (nullptr);
 		for ( const auto& dValue : dRow )
 			PutString ( dValue );
 		return Commit();
@@ -1721,7 +1723,7 @@ public:
 		HeadBegin();
 		HeadColumn (szTitle, MYSQL_COL_LONG);
 		HeadEnd();
-		PutNumAsString ( iValue );
+		PutDWORD ( iValue );
 		Commit();
 		Eof();
 		return true;

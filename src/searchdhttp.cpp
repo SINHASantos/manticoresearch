@@ -1715,7 +1715,6 @@ void ConvertJsonDataset ( const JsonObj_c & tRoot, const char * sStmt, RowBuffer
 		{
 			assert ( tDataRow.IsObj() ); // like {"id":2,"proto":"http","state":"query","host":"127.0.0.1:50787","connid":9,"killed":"0","last cmd":"select"}
 			int iCol = 0;
-			tOut.DataStart ( nullptr ); // fixme! Here should be nullmask instead of nullptr, and following null columns should be skipped.
 			for ( const auto & tDataCol : tDataRow )
 			{
 				assert ( iCol < dSqlColumns.GetLength() );
