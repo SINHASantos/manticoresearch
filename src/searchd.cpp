@@ -3739,7 +3739,7 @@ static void SendMysqlPercolateReply ( RowBuffer_i & tOut, const CPqResult & tRes
 	StringBuilder_c sDocs;
 	for ( const auto &tDesc : tRes.m_dQueryDesc )
 	{
-		tOut.PutNumAsString ( tDesc.m_iQUID );
+		tOut.PutInt64 ( tDesc.m_iQUID );
 		if ( bDumpDocs )
 		{
 			sDocs.StartBlock ( "," );
@@ -6974,12 +6974,12 @@ void HandleShowThreads ( RowBuffer_i & tOut, const SqlStmt_t * pStmt )
 	{
 		if ( !bAll && dThd.m_eTaskState==TaskState_e::UNKNOWN )
 			continue;
-		tOut.PutNumAsString ( dThd.m_iThreadID ); // TID
+		tOut.PutDWORD ( dThd.m_iThreadID ); // TID
 		tOut.PutString ( dThd.m_sThreadName ); // Name
 		tOut.PutString ( dThd.m_sProto ); // Proto
 		tOut.PutString ( TaskStateName ( dThd.m_eTaskState ) ); // State
 		tOut.PutString ( dThd.m_sClientName ); // Connection from
-		tOut.PutNumAsString ( dThd.m_iConnID ); // ConnID
+		tOut.PutInt64 ( dThd.m_iConnID ); // ConnID
 		int64_t tmNow = sphMicroTimer (); // short-term cache
 //		tOut.PutMicrosec ( tmNow-dThd.m_tmStart.value_or(tmNow) ); // time
 //		tOut.PutTimeAsString ( dThd.m_tmTotalWorkedTimeUS ); // work time
@@ -6997,7 +6997,7 @@ void HandleShowThreads ( RowBuffer_i & tOut, const SqlStmt_t * pStmt )
 //			tOut.PutTimeAsString ( dThd.m_tmTotalWorkedCPUTimeUS ); // work CPU time
 			tOut.PutPercentAsString ( dThd.m_tmTotalWorkedCPUTimeUS, dThd.m_tmTotalWorkedTimeUS ); // CPU activity as integer
 		}
-		tOut.PutNumAsString ( dThd.m_iTotalJobsDone ); // jobs done
+		tOut.PutDWORD ( dThd.m_iTotalJobsDone ); // jobs done
 		if ( dThd.m_tmLastJobStartTimeUS<0 )
 		{
 			tOut.PutString ( "idling" ); // idle for
@@ -7071,7 +7071,7 @@ void HandleShowSessions ( RowBuffer_i& tOut, const SqlStmt_t* pStmt )
 		tOut.PutString ( dThd.m_sProto );
 		tOut.PutString ( TaskStateName ( dThd.m_eTaskState ) );
 		tOut.PutString ( dThd.m_sClientName );												   // Host
-		tOut.PutNumAsString ( dThd.m_iConnID );												   // ConnID
+		tOut.PutInt64 ( dThd.m_iConnID );												   // ConnID
 		tOut.PutNumAsString ( dThd.m_bKilled ? 1 : 0);
 		if ( bAll )
 			tOut.PutString ( dThd.m_sChain ); // Chain
@@ -7749,7 +7749,15 @@ static void ReturnZeroCount ( const CSphSchema & tSchema, const CSphBitvec & tAt
 		// @count or its alias or count(distinct attr_name)
 		if ( dCounts.Contains ( tCol.m_sName ) )
 		{
-			dRows.PutNumAsString ( 0 );
+			switch (ESphAttr2MysqlColumn(tCol.m_eAttrType)) {
+			case MYSQL_COL_LONG: dRows.PutDWORD(0); break;
+			case MYSQL_COL_FLOAT: dRows.PutFloat(0.0); break;
+			case MYSQL_COL_DOUBLE: dRows.PutDouble(0.0); break;
+			case MYSQL_COL_LONGLONG: dRows.PutInt64(0LL); break;
+			case MYSQL_COL_UINT64: dRows.PutUint64(0ULL); break;
+			case MYSQL_COL_STRING:
+				default: dRows.PutNumAsString(0);
+			}
 		} else
 		{
 			// essentially the same as SELECT_DUAL, parse and print constant expressions
@@ -7773,9 +7781,9 @@ static void ReturnZeroCount ( const CSphSchema & tSchema, const CSphBitvec & tAt
 					dRows.PutString ( (const char *)pStr );
 					SafeDelete ( pStr );
 					break;
-				case SPH_ATTR_INTEGER:	dRows.PutNumAsString ( pExpr->IntEval ( tMatch ) ); break;
-				case SPH_ATTR_BIGINT:	dRows.PutNumAsString ( pExpr->Int64Eval ( tMatch ) ); break;
-				case SPH_ATTR_FLOAT:	dRows.PutFloatAsString ( pExpr->Eval ( tMatch ) ); break;
+				case SPH_ATTR_INTEGER:	dRows.PutDWORD ( pExpr->IntEval ( tMatch ) ); break;
+				case SPH_ATTR_BIGINT:	dRows.PutInt64 ( pExpr->Int64Eval ( tMatch ) ); break;
+				case SPH_ATTR_FLOAT:	dRows.PutFloat ( pExpr->Eval ( tMatch ) ); break;
 				default:
 					dRows.PutNULL();
 					break;
@@ -7945,21 +7953,6 @@ static void SendMysqlMatch ( const CSphMatch & tMatch, const CSphBitvec & tAttrs
 {
 	SphAttr_t tNullMask = pNullBitmaskAttr ? tMatch.GetAttr ( pNullBitmaskAttr->m_tLocator ) : 0;
 	const int iAttrs = tSchema.GetAttrsCount();
-	const BYTE* pBitmask = nullptr;
-	if ( pNullBitmaskAttr )
-	{
-		if ( pNullBitmaskAttr->m_eAttrType==SPH_ATTR_STRINGPTR )
-		{
-			ByteBlob_t tBlob = sphUnpackPtrAttr ( (const BYTE*)tNullMask );
-			assert ( iAttrs <= tBlob.second*8 );
-			pBitmask = tBlob.first;
-		} else
-		{
-			pBitmask = (const BYTE*) &tNullMask;
-			assert ( iAttrs < 64 );
-		}
-	}
-	dRows.DataStart ( pBitmask );
 
 	for ( int i=0; i < iAttrs; i++ )
 	{
@@ -9559,7 +9552,7 @@ void HandleMysqlFlush ( RowBuffer_i & tOut, const SqlStmt_t & )
 	tOut.HeadEnd ();
 
 	// data packet, var value
-	tOut.PutNumAsString ( iTag );
+	tOut.PutInt ( iTag );
 	tOut.Commit();
 
 	// done
@@ -9593,7 +9586,7 @@ void HandleSelectFiles ( RowBuffer_i & tOut, const CSphString & sIndex, const CS
 		{
 			tOut.PutString ( dFiles[i] );
 			tOut.PutString ( RealPath ( dFiles[i] ) );
-			tOut.PutNumAsString ( sphGetFileSize ( dFiles[i], nullptr ) );
+			tOut.PutInt64 ( sphGetFileSize ( dFiles[i], nullptr ) );
 			if ( !tOut.Commit () )
 				return;
 		}
@@ -9605,7 +9598,7 @@ void HandleSelectFiles ( RowBuffer_i & tOut, const CSphString & sIndex, const CS
 		{
 			tOut.PutString ( dExt[i] );
 			tOut.PutString ( RealPath ( dExt[i] ) );
-			tOut.PutNumAsString ( sphGetFileSize ( dExt[i], nullptr ) );
+			tOut.PutInt64 ( sphGetFileSize ( dExt[i], nullptr ) );
 			if ( !tOut.Commit () )
 				return;
 		}
@@ -9804,22 +9797,22 @@ void HandleMysqlSelectColumns ( RowBuffer_i & tOut, const SqlStmt_t & tStmt, Cli
 	{
 		const MysqlColumnType_e m_eType;
 		const char* m_szName;
-		std::function<CSphString ( void )> m_fnValue;
+		std::function<void()> m_fnValue;
 	};
 
 	const SysVar_t dSysvars[] =
 	{
-		{ MYSQL_COL_STRING,	nullptr, [] { return "<empty>"; } }, // stub
-		{ MYSQL_COL_LONG,	"@@session.auto_increment_increment",	[] {return "1";}},
-		{ MYSQL_COL_STRING,	"@@character_set_client", [] {return "utf8";}},
-		{ MYSQL_COL_STRING,	"@@character_set_connection", [] {return "utf8";}},
-		{ MYSQL_COL_LONG,	"@@max_allowed_packet", [] { StringBuilder_c s; s << g_iMaxPacketSize; return CSphString(s); }},
-		{ MYSQL_COL_LONG,	"@@wait_timeout", [] { StringBuilder_c s; s << GetActiveSessionWaitTimeoutS (); return CSphString(s); }},
-		{ MYSQL_COL_LONG,	"@@interactive_timeout", [] { StringBuilder_c s; s << GetActiveSessionTimeoutS (); return CSphString(s); }},
-		{ MYSQL_COL_STRING,	"@@version_comment", [] { return szGIT_BRANCH_ID;}},
-		{ MYSQL_COL_LONG,	"@@lower_case_table_names", [] { return "1"; }},
-		{ MYSQL_COL_STRING,	"@@session.last_insert_id", [pSession] { return GetLastInsertId ( pSession ); } },
-		{ MYSQL_COL_LONG, "@@autocommit", [pSession] { return pSession->m_bAutoCommit ? "1" : "0"; } },
+		{ MYSQL_COL_STRING,	nullptr, [&tOut] {tOut.PutString ("<empty>");}}, // stub
+		{ MYSQL_COL_LONG,	"@@session.auto_increment_increment", [&tOut] {tOut.PutDWORD(1);}},
+		{ MYSQL_COL_STRING,	"@@character_set_client", [&tOut] {tOut.PutString ("utf8");}},
+		{ MYSQL_COL_STRING,	"@@character_set_connection", [&tOut] {tOut.PutString ("utf8");}},
+		{ MYSQL_COL_LONG,	"@@max_allowed_packet", [&tOut] { tOut.PutDWORD (g_iMaxPacketSize);}},
+		{ MYSQL_COL_LONG,	"@@wait_timeout", [&tOut] { tOut.PutDWORD (GetActiveSessionWaitTimeoutS ());}},
+		{ MYSQL_COL_LONG,	"@@interactive_timeout", [&tOut] { tOut.PutDWORD (GetActiveSessionTimeoutS ());}},
+		{ MYSQL_COL_STRING,	"@@version_comment", [&tOut] { tOut.PutString (szGIT_BRANCH_ID);}},
+		{ MYSQL_COL_LONG,	"@@lower_case_table_names", [&tOut] { tOut.PutDWORD(1);}},
+		{ MYSQL_COL_STRING,	"@@session.last_insert_id", [pSession,&tOut] { tOut.PutString ( GetLastInsertId ( pSession ) );}},
+		{ MYSQL_COL_LONG, "@@autocommit", [pSession,&tOut] { tOut.PutDWORD ( pSession->m_bAutoCommit ? 1 : 0);}},
 	};
 
 	auto fnVarIdxByName = [&dSysvars] ( const CSphString& sName ) noexcept -> int
@@ -9934,18 +9927,18 @@ void HandleMysqlSelectColumns ( RowBuffer_i & tOut, const SqlStmt_t & tStmt, Cli
 					FreeDataPtr ( *pExpr, pStr );
 					break;
 				}
-			case SPH_ATTR_INTEGER:	tOut.PutNumAsString ( pExpr->IntEval ( tMatch ) ); break;
-			case SPH_ATTR_BIGINT:	tOut.PutNumAsString ( pExpr->Int64Eval ( tMatch ) ); break;
-			case SPH_ATTR_UINT64:	tOut.PutNumAsString ( (uint64_t)pExpr->Int64Eval ( tMatch ) ); break;
-			case SPH_ATTR_FLOAT:	tOut.PutFloatAsString ( pExpr->Eval ( tMatch ) ); break;
-			case SPH_ATTR_DOUBLE:	tOut.PutDoubleAsString ( pExpr->Eval ( tMatch ) ); break;
+			case SPH_ATTR_INTEGER:	tOut.PutDWORD ( pExpr->IntEval ( tMatch ) ); break;
+			case SPH_ATTR_BIGINT:	tOut.PutInt64 ( pExpr->Int64Eval ( tMatch ) ); break;
+			case SPH_ATTR_UINT64:	tOut.PutUint64 ( (uint64_t)pExpr->Int64Eval ( tMatch ) ); break;
+			case SPH_ATTR_FLOAT:	tOut.PutFloat ( pExpr->Eval ( tMatch ) ); break;
+			case SPH_ATTR_DOUBLE:	tOut.PutDouble ( pExpr->Eval ( tMatch ) ); break;
 			default:
 				tOut.PutNULL();
 				break;
 			}
 		}
 		else
-			tOut.PutString ( dSysvars[dColumn.m_iSysvarIdx].m_fnValue() );
+			dSysvars[dColumn.m_iSysvarIdx].m_fnValue();
 	}
 
 	// finalize
@@ -9970,7 +9963,7 @@ void HandleMysqlShowCollations ( RowBuffer_i & tOut )
 	// data packets
 	tOut.PutString ( "utf8_general_ci" );
 	tOut.PutString ( "utf8" );
-	tOut.PutString ( "33" );
+	tOut.PutInt64 ( 33 );
 	tOut.PutString ( "Yes" );
 	tOut.PutString ( "Yes" );
 	tOut.PutString ( "1" );
@@ -10429,20 +10422,20 @@ void PutIndexStatus ( RowBuffer_i & tOut, const CSphIndex * pIndex )
 	tOut.PutString ( pIndex->GetFilebase () );
 
 	auto & tStats = pIndex->GetStats ();
-	tOut.PutNumAsString ( tStats.m_iTotalDocuments );
-	tOut.PutNumAsString ( tStats.m_iTotalBytes );
+	tOut.PutDWORD ( tStats.m_iTotalDocuments );
+	tOut.PutInt64 ( tStats.m_iTotalBytes );
 
 	CSphIndexStatus tStatus;
 	pIndex->GetStatus ( &tStatus );
-	tOut.PutNumAsString ( tStatus.m_iRamUse );
-	tOut.PutNumAsString ( tStatus.m_iDiskUse );
-	tOut.PutNumAsString ( tStatus.m_iMapped );
-	tOut.PutNumAsString ( tStatus.m_iMappedResident );
-	tOut.PutNumAsString ( tStatus.m_iMappedDocs );
-	tOut.PutNumAsString ( tStatus.m_iMappedResidentDocs );
-	tOut.PutNumAsString ( tStatus.m_iMappedHits );
-	tOut.PutNumAsString ( tStatus.m_iMappedResidentHits );
-	tOut.PutNumAsString ( tStatus.m_iDead );
+	tOut.PutInt64 ( tStatus.m_iRamUse );
+	tOut.PutInt64 ( tStatus.m_iDiskUse );
+	tOut.PutInt64 ( tStatus.m_iMapped );
+	tOut.PutInt64 ( tStatus.m_iMappedResident );
+	tOut.PutInt64 ( tStatus.m_iMappedDocs );
+	tOut.PutInt64 ( tStatus.m_iMappedResidentDocs );
+	tOut.PutInt64 ( tStatus.m_iMappedHits );
+	tOut.PutInt64 ( tStatus.m_iMappedResidentHits );
+	tOut.PutInt64 ( tStatus.m_iDead );
 }
 
 void HandleSelectIndexStatus ( RowBuffer_i & tOut, const SqlStmt_t * pStmt )
@@ -10488,21 +10481,18 @@ void HandleSelectIndexStatus ( RowBuffer_i & tOut, const SqlStmt_t * pStmt )
 					bKeepIteration = false;
 					return;
 				}
-				tOut.PutNumAsString ( pChunk->m_iChunk );
+				tOut.PutDWORD ( pChunk->m_iChunk );
 				PutIndexStatus ( tOut, pChunk );
-				tOut.PutNumAsString ( bOptimizing ? 1 : 0 );
+				tOut.PutDWORD ( bOptimizing ? 1 : 0 );
 				if ( !tOut.Commit () )
-				{
 					bKeepIteration = false;
-					return;
-				}
 			});
 			++iChunk;
 		}
 	} else {
-		tOut.PutNumAsString ( 0 ); // dummy 'chunk' of non-rt
+		tOut.PutDWORD ( 0 ); // dummy 'chunk' of non-rt
 		PutIndexStatus ( tOut, pIndex );
-		tOut.PutNumAsString ( 0 );
+		tOut.PutDWORD ( 0 );
 		tOut.Commit ();
 	}
 	tOut.Eof();
